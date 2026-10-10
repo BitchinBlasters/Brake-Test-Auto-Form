@@ -1,0 +1,1063 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1b2127">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Brake Tests">
+<title>Brake Test Recorder</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one column of work cards down a phone; hazard-striped app bar; slips shown as thermal receipts side by side */
+:root {
+  --bg: #e7ebee; --surface: #ffffff; --field: #ffffff; --ink: #14181c; --muted: #56616b; --line: #cdd5db;
+  --bar: #1b2127; --bar-ink: #f3f5f6; --bar-muted: #a9b3ba; --bar-line: #3a444d;
+  --hivis: #ffc20e; --hivis-ink: #17191b;
+  --ok: #17763f; --ok-bg: #dff1e6; --warn: #9a5800; --warn-bg: #ffefcf; --fail: #b02219; --fail-bg: #fbe3e1;
+  --info-bg: #edf1f4; --idle: #6b7680;
+  --paper: #fbfaf4; --paper-ink: #1f1f1c; --paper-muted: #6a6a60; --paper-rule: #c9c6b8; --paper-flag: #ffe7a3;
+  --f-display: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+  --f-body: 'Barlow', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1215; --surface: #171c21; --field: #10151a; --ink: #e6eaed; --muted: #9ba7b1; --line: #2a333b;
+    --bar: #0a0d10; --bar-ink: #eef1f3; --bar-muted: #8e9aa4; --bar-line: #2b343c;
+    --ok: #52c987; --ok-bg: #12301f; --warn: #f2a93b; --warn-bg: #3a2908; --fail: #ff7b70; --fail-bg: #3e1513;
+    --info-bg: #1f262c; --idle: #85919b;
+    --paper: #e8e6db; --paper-ink: #1c1c19; --paper-muted: #5d5d55; --paper-rule: #b9b6a8; --paper-flag: #f7d777;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1215; --surface: #171c21; --field: #10151a; --ink: #e6eaed; --muted: #9ba7b1; --line: #2a333b;
+  --bar: #0a0d10; --bar-ink: #eef1f3; --bar-muted: #8e9aa4; --bar-line: #2b343c;
+  --ok: #52c987; --ok-bg: #12301f; --warn: #f2a93b; --warn-bg: #3a2908; --fail: #ff7b70; --fail-bg: #3e1513;
+  --info-bg: #1f262c; --idle: #85919b;
+  --paper: #e8e6db; --paper-ink: #1c1c19; --paper-muted: #5d5d55; --paper-rule: #b9b6a8; --paper-flag: #f7d777;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 var(--f-body); }
+[hidden] { display: none !important; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--hivis); outline-offset: 2px; }
+
+/* App bar */
+.bar { position: sticky; top: 0; z-index: 20; background: var(--bar); color: var(--bar-ink);
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 12px; }
+.bar::after { content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 6px;
+  background: repeating-linear-gradient(-45deg, var(--hivis) 0 9px, var(--bar) 9px 18px); }
+.bar-in { max-width: 760px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+.brand { flex: 1; min-width: 0; }
+.brand h1 { margin: 0; font: 700 1.3rem/1.05 var(--f-display); letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brand p { margin: 3px 0 0; font-size: .78rem; color: var(--bar-muted); }
+.iconbtn { appearance: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px;
+  border: 1px solid var(--bar-line); border-radius: 10px; background: transparent; color: var(--bar-ink); font-weight: 600; cursor: pointer; }
+.iconbtn svg { width: 20px; height: 20px; }
+@media (max-width: 420px) { .iconbtn .lbl { display: none; } .iconbtn { padding: 0 11px; } }
+
+main { max-width: 760px; margin: 0 auto; padding-block: 26px 48px; padding-inline: 16px; display: grid; gap: 16px; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+.h2 { margin: 0; font: 700 1.2rem/1.1 var(--f-display); letter-spacing: .06em; text-transform: uppercase; }
+.lede { margin: -6px 0 0; color: var(--muted); font-size: .92rem; }
+.section-head { display: grid; gap: 4px; padding: 6px 2px 0; }
+
+.field { display: grid; gap: 5px; font-size: .8rem; font-weight: 600; color: var(--muted); letter-spacing: .02em; min-width: 0; }
+input[type=text], input:not([type]), select, textarea {
+  font: 500 16px/1.3 var(--f-body); color: var(--ink); background: var(--field);
+  border: 1.5px solid var(--line); border-radius: 8px; padding: 10px 12px; min-height: 48px; width: 100%; }
+select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(-45deg, transparent 50%, var(--muted) 50%);
+  background-position: calc(100% - 20px) 21px, calc(100% - 14px) 21px; background-size: 6px 6px; background-repeat: no-repeat; padding-right: 36px; }
+input:focus, select:focus, textarea:focus { border-color: var(--ink); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.hint { font-size: .85rem; color: var(--muted); margin: 0; }
+.hint.warn { color: var(--warn); font-weight: 600; }
+
+.limits { display: grid; gap: 6px; background: var(--info-bg); border-radius: 8px; padding: 10px 12px; font: 400 .84rem/1.45 var(--f-mono); }
+.limits b { font-family: var(--f-body); font-weight: 700; letter-spacing: .02em; }
+
+.btn { appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 16px;
+  border-radius: 10px; border: 1.5px solid var(--ink); background: var(--surface); color: var(--ink); font: 600 1rem/1 var(--f-body); cursor: pointer; text-decoration: none; }
+.btn svg { width: 20px; height: 20px; flex: none; }
+.btn.primary { background: var(--hivis); border-color: var(--hivis); color: var(--hivis-ink); }
+.btn.solid { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.btn.quiet { border-color: var(--line); }
+.btn.big { min-height: 56px; font-size: 1.08rem; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; }
+.row > .btn { flex: 1 1 140px; }
+
+.banner { background: var(--warn-bg); border: 1px solid var(--warn); border-radius: 10px; padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+.banner p { margin: 0; flex: 1 1 220px; }
+
+/* Tests */
+.tests { display: grid; gap: 12px; }
+.test { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: inset 6px 0 0 var(--stripe, transparent); }
+.test[data-status="pass"] { --stripe: var(--ok); }
+.test[data-status="warn"] { --stripe: var(--warn); }
+.test[data-status="fail"] { --stripe: var(--fail); }
+.test-head { display: flex; align-items: center; gap: 12px; padding: 14px 14px 14px 18px; cursor: pointer; user-select: none; }
+.tick { position: relative; width: 30px; height: 30px; flex: none; }
+.tick input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.tick span { position: absolute; inset: 0; border: 2px solid var(--ink); border-radius: 7px; background: var(--field); }
+.tick input:checked + span { background: var(--ink); }
+.tick input:checked + span::after { content: ""; position: absolute; left: 9px; top: 3px; width: 8px; height: 15px; border: solid var(--surface); border-width: 0 3px 3px 0; transform: rotate(45deg); }
+.tick input:disabled + span { opacity: .35; }
+.tick input:focus-visible + span { outline: 3px solid var(--hivis); outline-offset: 2px; }
+.test-title { flex: 1; min-width: 0; }
+.test-title b { display: block; font: 700 1.15rem/1.1 var(--f-display); letter-spacing: .05em; text-transform: uppercase; }
+.test-title span { display: block; font-size: .84rem; color: var(--muted); margin-top: 2px; }
+.pill { font: 700 .78rem/1 var(--f-display); letter-spacing: .07em; text-transform: uppercase; padding: 7px 10px; border-radius: 999px; white-space: nowrap; background: var(--info-bg); color: var(--idle); }
+.pill.pass { background: var(--ok-bg); color: var(--ok); }
+.pill.warn, .pill.accepted { background: var(--warn-bg); color: var(--warn); }
+.pill.fail { background: var(--fail-bg); color: var(--fail); }
+.pill.busy { background: var(--hivis); color: var(--hivis-ink); }
+.test-body { padding: 0 16px 16px 18px; display: grid; gap: 14px; min-width: 0; }
+.na-note { margin: 0; padding: 0 16px 16px 18px; color: var(--muted); font-size: .9rem; }
+.note { margin: 0; font-size: .9rem; color: var(--warn); font-weight: 600; }
+
+.progress { display: flex; align-items: center; gap: 10px; font-size: .92rem; font-weight: 600; }
+.spin { width: 18px; height: 18px; border: 3px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: spin .8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.thumbs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.thumbs button { appearance: none; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; flex: none; cursor: zoom-in; }
+.thumbs img { display: block; width: 64px; height: 64px; object-fit: cover; border-radius: 5px; }
+
+.slips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.receipt { position: relative; background: var(--paper); color: var(--paper-ink); font-family: var(--f-mono);
+  padding: 10px 10px 18px; border-radius: 3px 3px 0 0; min-width: 0;
+  -webkit-mask: radial-gradient(circle 5px at 50% 100%, transparent 98%, #000) 0 0 / 12px 100% repeat-x;
+          mask: radial-gradient(circle 5px at 50% 100%, transparent 98%, #000) 0 0 / 12px 100% repeat-x; }
+.receipt.empty { display: grid; place-items: center; text-align: center; min-height: 180px; color: var(--paper-muted); font-size: .82rem; background: transparent;
+  border: 2px dashed var(--line); -webkit-mask: none; mask: none; border-radius: 6px; padding: 12px; }
+.r-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase;
+  border-bottom: 1px dashed var(--paper-rule); padding-bottom: 6px; margin-bottom: 4px; }
+.r-del { appearance: none; border: 0; background: none; color: var(--paper-muted); width: 36px; height: 32px; margin: -6px -8px -6px 0; font-size: 1.3rem; cursor: pointer; }
+.r-row { display: grid; gap: 0; padding: 4px 0 2px; }
+.r-row > span:first-child { font-size: .66rem; text-transform: uppercase; letter-spacing: .06em; color: var(--paper-muted); }
+.r-val { display: flex; align-items: baseline; gap: 4px; }
+.r-val input { font: 600 16px/1.2 var(--f-mono); color: var(--paper-ink); background: transparent; border: 0; border-bottom: 1px solid var(--paper-rule);
+  border-radius: 0; padding: 3px 2px; min-height: 34px; width: 100%; min-width: 0; }
+.r-val input:focus { outline: none; border-bottom: 2px solid var(--paper-ink); }
+.r-val input.flag { background: var(--paper-flag); }
+.r-val i { font-style: normal; font-size: .72rem; color: var(--paper-muted); flex: none; width: 2.6em; }
+.flag-note { font-size: .8rem; color: var(--muted); margin: -4px 0 0; }
+.flag-note mark { background: var(--paper-flag); color: var(--paper-ink); padding: 0 4px; border-radius: 3px; }
+
+.verdict { display: grid; gap: 10px; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.checks li { display: grid; grid-template-columns: 22px 1fr; gap: 9px; align-items: start; font-size: .93rem; }
+.mark { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font: 700 .78rem/1 var(--f-body); background: var(--info-bg); color: var(--muted); margin-top: 1px; }
+.mark.ok { background: var(--ok); color: var(--surface); }
+.mark.warn { background: var(--warn); color: var(--surface); }
+.mark.fail { background: var(--fail); color: var(--surface); }
+.accept { display: flex; gap: 10px; align-items: flex-start; background: var(--warn-bg); border-radius: 8px; padding: 10px 12px; font-weight: 600; font-size: .92rem; cursor: pointer; }
+.accept input { width: 22px; height: 22px; margin: 0; flex: none; accent-color: var(--warn); }
+details.raw summary { cursor: pointer; font-size: .84rem; color: var(--muted); }
+details.raw pre { white-space: pre-wrap; font: .78rem/1.4 var(--f-mono); background: var(--info-bg); padding: 10px; border-radius: 8px; margin: 8px 0 0; max-height: 220px; overflow: auto; }
+
+/* Park brake */
+.park-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 10px 12px; align-items: end; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden; min-height: 48px; }
+.seg button { appearance: none; border: 0; border-left: 1px solid var(--line); background: var(--field); font-weight: 700; cursor: pointer; min-height: 46px; }
+.seg button:first-child { border-left: 0; }
+.seg button[aria-pressed="true"][data-val="pass"] { background: var(--ok); color: var(--surface); }
+.seg button[aria-pressed="true"][data-val="fail"] { background: var(--fail); color: var(--surface); }
+.seg button[aria-pressed="true"][data-val="na"] { background: var(--ink); color: var(--surface); }
+.unit-in { position: relative; }
+.unit-in input { padding-right: 34px; }
+.unit-in i { position: absolute; right: 12px; bottom: 14px; font-style: normal; color: var(--muted); font-weight: 600; }
+
+/* Finish */
+.summary { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; border-top: 1px solid var(--line); }
+.summary li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: .94rem; }
+.summary li span:last-child { text-align: right; font-weight: 600; }
+.summary .ok { color: var(--ok); } .summary .warn { color: var(--warn); } .summary .fail { color: var(--fail); } .summary .idle { color: var(--muted); }
+.result { display: grid; gap: 10px; background: var(--ok-bg); border-radius: 10px; padding: 14px; }
+.result p { margin: 0; font-weight: 600; word-break: break-word; }
+
+/* Settings sheet */
+.sheet { position: fixed; inset: 0; z-index: 50; background: var(--bg); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.sheet .bar { position: sticky; }
+.sheet main { padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
+.eq { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.eq legend { font-size: .8rem; font-weight: 700; color: var(--muted); padding: 0 6px; }
+.radio { display: flex; gap: 10px; align-items: flex-start; font-size: .95rem; cursor: pointer; }
+.radio input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--ink); flex: none; }
+.status-line { font-size: .9rem; margin: 0; }
+.status-line.ok { color: var(--ok); font-weight: 600; } .status-line.warn { color: var(--warn); font-weight: 600; }
+.small { font-size: .82rem; color: var(--muted); margin: 0; }
+
+.viewer { position: fixed; inset: 0; z-index: 60; background: rgba(5, 7, 9, .94); display: grid; place-items: center; padding: 16px; cursor: zoom-out; }
+.viewer img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 70;
+  background: var(--ink); color: var(--surface); padding: 12px 16px; border-radius: 10px; font-weight: 600; max-width: calc(100% - 32px); box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+
+@media (max-width: 360px) { .slips { grid-template-columns: minmax(0, 1fr); } .park-row { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-in">
+    <div class="brand">
+      <h1>Brake Test Recorder</h1>
+      <p id="critLine">HV brake slips to record sheet</p>
+    </div>
+    <button class="iconbtn" id="openSettings" type="button" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      <span class="lbl">Settings</span>
+    </button>
+  </div>
+</header>
+
+<main id="main">
+  <div class="banner" id="setupBanner" hidden>
+    <p id="setupText">Add your tester details and load the record sheet once. They stay on this phone.</p>
+    <button class="btn solid" type="button" data-open-settings>Set up</button>
+  </div>
+
+  <section class="card" id="machineCard" aria-labelledby="machineH">
+    <h2 class="h2" id="machineH">Machine</h2>
+    <label class="field">Machine type and model
+      <select id="machine" data-job="machineId"><option value="">Choose a machine…</option></select>
+    </label>
+    <p class="hint" id="serialHint" hidden></p>
+    <div class="limits" id="limits" hidden></div>
+    <div class="grid2">
+      <label class="field">Unit ID / Rego<input id="unitId" data-job="unitId" autocomplete="off" autocapitalize="characters" placeholder="e.g. WT16"></label>
+      <label class="field">Serial / VIN<input id="serial" data-job="serial" autocomplete="off" autocapitalize="characters" placeholder="e.g. SPD00814"></label>
+      <label class="field">Machine hours / km<input id="hours" data-job="hours" autocomplete="off" placeholder="e.g. 30193 hrs"></label>
+      <label class="field">Job / WO #<input id="wo" data-job="wo" autocomplete="off" inputmode="numeric" placeholder="e.g. 10112586"></label>
+      <label class="field">Payload (laden tests)<input id="payload" data-job="payload" autocomplete="off" placeholder="e.g. 140T"></label>
+      <label class="field">Date<input id="date" data-job="date" autocomplete="off" inputmode="numeric" placeholder="DD-MM-YYYY"></label>
+      <label class="field">Time of test<input id="time" data-job="time" autocomplete="off" inputmode="numeric" placeholder="e.g. 9:53"></label>
+    </div>
+    <label class="field">Machine description<input id="description" data-job="description" autocomplete="off" placeholder="Fills in when you pick the machine"></label>
+  </section>
+
+  <div class="section-head">
+    <h2 class="h2">Brake tests</h2>
+    <p class="lede">Tick the tests you're recording, then photograph both slips for each one. One photo of both slips works, or one photo each.</p>
+  </div>
+  <div class="tests" id="testList"></div>
+
+  <section class="card" id="parkCard" aria-labelledby="parkH">
+    <h2 class="h2" id="parkH">Park brake and inspection</h2>
+    <div class="park-row">
+      <label class="field">Reverse gradient<span class="unit-in"><input id="parkRev" data-park="rev" inputmode="decimal" autocomplete="off" placeholder="e.g. 13.8"><i>%</i></span></label>
+      <div class="seg" role="group" aria-label="Reverse result" data-park-seg="rev">
+        <button type="button" data-val="pass" aria-pressed="false">Pass</button><button type="button" data-val="fail" aria-pressed="false">Fail</button><button type="button" data-val="na" aria-pressed="false">N/A</button>
+      </div>
+    </div>
+    <div class="park-row">
+      <label class="field">Forward gradient<span class="unit-in"><input id="parkFwd" data-park="fwd" inputmode="decimal" autocomplete="off" placeholder="e.g. 13.8"><i>%</i></span></label>
+      <div class="seg" role="group" aria-label="Forward result" data-park-seg="fwd">
+        <button type="button" data-val="pass" aria-pressed="false">Pass</button><button type="button" data-val="fail" aria-pressed="false">Fail</button><button type="button" data-val="na" aria-pressed="false">N/A</button>
+      </div>
+    </div>
+    <label class="field">Skid marks, service brake<input id="skidService" data-job="skidService" autocomplete="off"></label>
+    <label class="field">Skid marks, secondary brake<input id="skidSecondary" data-job="skidSecondary" autocomplete="off"></label>
+    <label class="field">Closing comment<textarea id="finalNote" data-job="finalNote" rows="2"></textarea></label>
+  </section>
+
+  <section class="card" id="finishCard" aria-labelledby="finishH">
+    <h2 class="h2" id="finishH">Record sheet</h2>
+    <ul class="summary" id="summary"></ul>
+    <div id="finishWarnings" class="verdict"></div>
+    <button class="btn primary big" id="makePdf" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg>
+      Fill the record sheet
+    </button>
+    <div class="result" id="result" hidden>
+      <p id="resultName"></p>
+      <div class="row">
+        <button class="btn solid" id="sharePdf" type="button">Share</button>
+        <button class="btn" id="savePdf" type="button">Save</button>
+        <button class="btn" id="openPdf" type="button">Open</button>
+      </div>
+    </div>
+    <button class="btn quiet" id="newJob" type="button">Start next machine</button>
+  </section>
+</main>
+
+<div class="sheet" id="settings" hidden role="dialog" aria-modal="true" aria-labelledby="settingsH">
+  <header class="bar">
+    <div class="bar-in">
+      <div class="brand"><h1 id="settingsH">Settings</h1><p>Saved on this phone only</p></div>
+      <button class="iconbtn" id="closeSettings" type="button">Done</button>
+    </div>
+  </header>
+  <main>
+    <section class="card">
+      <h2 class="h2">Your details</h2>
+      <div class="grid2">
+        <label class="field">Tester name<input id="sTester" data-set="testerName" autocomplete="name"></label>
+        <label class="field">Cert #<input id="sCert" data-set="certNo" autocomplete="off" autocapitalize="characters"></label>
+        <label class="field">Competency number<input id="sComp" data-set="competency" autocomplete="off" autocapitalize="characters"></label>
+      </div>
+    </section>
+    <section class="card">
+      <h2 class="h2">Site</h2>
+      <div class="grid2">
+        <label class="field">Testing station / site<input id="sStation" data-set="stationName" autocomplete="off"></label>
+        <label class="field">Site code<input id="sSite" data-set="siteCode" autocomplete="off" autocapitalize="characters"></label>
+      </div>
+    </section>
+    <section class="card">
+      <h2 class="h2">Test equipment</h2>
+      <div id="eqList" class="verdict"></div>
+    </section>
+    <section class="card">
+      <h2 class="h2">Defaults for each test</h2>
+      <label class="field">Skid marks text<input id="sSkid" data-set="skidText" autocomplete="off"></label>
+      <label class="field">Closing comment<textarea id="sNote" data-set="finalNote" rows="2"></textarea></label>
+    </section>
+    <section class="card">
+      <h2 class="h2">Capability check</h2>
+      <p class="small">How the 5% / 10% difference between the two slips is worked out. Speed always uses % of the reading.</p>
+      <label class="radio"><input type="radio" name="capMode" value="relative"> <span><b>% of the reading.</b> 34% and 36% are 5.7% apart.</span></label>
+      <label class="radio"><input type="radio" name="capMode" value="points"> <span><b>Percentage points.</b> 34% and 36% are 2 points apart.</span></label>
+    </section>
+    <section class="card">
+      <h2 class="h2">Record sheet PDF</h2>
+      <p class="status-line" id="formStatus">Checking…</p>
+      <p class="small">Use any copy of the WHC-QLD-FRM Mandatory Brake Test Record Sheet (Issue 3.0), blank or already filled in. Anything typed on it is cleared first.</p>
+      <button class="btn" id="loadForm" type="button">Load record sheet PDF</button>
+    </section>
+    <section class="card">
+      <h2 class="h2">Offline use</h2>
+      <p class="status-line" id="ocrStatus">The slip reader downloads the first time you photograph a slip (about 15 MB).</p>
+      <button class="btn" id="prepOcr" type="button">Download it now</button>
+      <p class="small">After that it works with no signal. Add this page to your home screen to open it like an app.</p>
+    </section>
+    <section class="card">
+      <h2 class="h2">Limits in use</h2>
+      <p class="small" id="critAbout"></p>
+    </section>
+  </main>
+</div>
+
+<div class="viewer" id="viewer" hidden><img id="viewerImg" alt="Slip photo"></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<input type="file" id="camIn" accept="image/*" capture="environment" hidden>
+<input type="file" id="galIn" accept="image/*" multiple hidden>
+<input type="file" id="formIn" accept="application/pdf,.pdf" hidden>
+
+<script src="pdf-lib.min.js"></script>
+<script src="core.js"></script>
+<script>
+'use strict';
+/* =====================================================================
+ * Brake Test Recorder — app wiring
+ * ===================================================================== */
+const TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+const LS_SETTINGS = 'btr.settings.v1', LS_JOB = 'btr.job.v1';
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+/* ---------- Storage ---------- */
+function load(key, fallback) {
+  try { const v = JSON.parse(localStorage.getItem(key)); return v && typeof v === 'object' ? v : fallback; } catch (e) { return fallback; }
+}
+function store(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* storage full or blocked */ } }
+
+const DEFAULT_SETTINGS = {
+  testerName: '', certNo: '', competency: '',
+  stationName: 'Black Water Mine', siteCode: 'BWM',
+  equipment: [
+    { id: 'BrakeTesta Rx-M', serial: 'BTR02829', lastCal: '01-05-2026', nextCal: '01-05-2027' },
+    { id: '', serial: '', lastCal: '', nextCal: '' },
+    { id: '', serial: '', lastCal: '', nextCal: '' },
+  ],
+  skidText: 'Even & Consistent',
+  finalNote: 'Post testing visual inspection found no leaks nor any signs of damage.',
+  capMode: 'relative',
+  lastGradient: '',
+  ocrReady: false,
+};
+let settings = Object.assign({}, DEFAULT_SETTINGS, load(LS_SETTINGS, {}));
+if (!Array.isArray(settings.equipment) || settings.equipment.length < 3) settings.equipment = DEFAULT_SETTINGS.equipment.map(e => Object.assign({}, e));
+
+function newJob() {
+  const tests = {};
+  BTR.TESTS.forEach(t => { tests[t.key] = { slips: [], accepted: false, note: '' }; });
+  return {
+    machineId: '', unitId: '', serial: '', hours: '', wo: '', payload: '',
+    date: BTR.todayDMY(), time: BTR.nowHM(), description: '', descEdited: false,
+    selected: { svcUL: false, svcL: false, secUL: false, secL: false }, tests,
+    park: { rev: { gradient: settings.lastGradient || '', result: '' }, fwd: { gradient: settings.lastGradient || '', result: '' } },
+    skidService: settings.skidText, skidSecondary: settings.skidText, finalNote: settings.finalNote,
+  };
+}
+let job = load(LS_JOB, null);
+if (!job || !job.tests) job = newJob();
+BTR.TESTS.forEach(t => { if (!job.tests[t.key]) job.tests[t.key] = { slips: [], accepted: false, note: '' }; });
+
+let saveTimer = null;
+function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { store(LS_JOB, job); store(LS_SETTINGS, settings); }, 250); }
+
+/* ---------- IndexedDB for the record sheet PDF ---------- */
+const idb = {
+  open() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('btr', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('files');
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+  },
+  async get(k) {
+    const db = await this.open();
+    return new Promise((res, rej) => { const q = db.transaction('files').objectStore('files').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+  },
+  async set(k, v) {
+    const db = await this.open();
+    return new Promise((res, rej) => { const tx = db.transaction('files', 'readwrite'); tx.objectStore('files').put(v, k); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); });
+  },
+};
+let template = null; // { name, bytes:Uint8Array, source }
+let templateLookup = null;
+function getTemplate() {
+  if (template) return Promise.resolve(template);
+  return templateLookup || (templateLookup = findTemplate().finally(() => { templateLookup = null; }));
+}
+let templateMissing = false;
+async function findTemplate() {
+  if (templateMissing) return null;
+  try { const t = await idb.get('form'); if (t && t.bytes) { template = { name: t.name, bytes: new Uint8Array(t.bytes), source: 'phone' }; return template; } } catch (e) {}
+  try {
+    const r = await fetch('form.pdf', { cache: 'no-cache' });
+    if (r.ok && (r.headers.get('content-type') || '').includes('pdf')) { template = { name: 'form.pdf', bytes: new Uint8Array(await r.arrayBuffer()), source: 'app' }; return template; }
+  } catch (e) {}
+  templateMissing = true;
+  return null;
+}
+async function useTemplateFile(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const doc = await PDFLib.PDFDocument.load(bytes).catch(() => null);
+  if (!doc) throw new Error('That file could not be opened as a PDF.');
+  if (doc.getPageCount() !== 2) throw new Error(`That PDF has ${doc.getPageCount()} pages. The brake test record sheet has 2.`);
+  template = { name: file.name, bytes, source: 'phone' }; templateMissing = false;
+  try { await idb.set('form', { name: file.name, bytes: bytes.buffer.slice(0) }); } catch (e) {}
+}
+
+/* ---------- Helpers ---------- */
+const machine = () => BTR.machineById(job.machineId);
+let toastTimer = null;
+function toast(msg, ms = 3200) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, ms);
+}
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = src; s.async = true;
+    s.onload = res; s.onerror = () => rej(new Error('Could not download the slip reader. Check your signal and try again, or type the values in.'));
+    document.head.appendChild(s);
+  });
+}
+
+/* ---------- Results ---------- */
+let results = {};
+const busy = {}; // testKey -> progress text
+function computeResults() {
+  const m = machine();
+  results = {};
+  for (const t of BTR.TESTS) {
+    const others = BTR.TESTS.filter(o => o.key !== t.key && job.selected[o.key])
+      .flatMap(o => job.tests[o.key].slips.map(s => BTR.num(s.values.testNo)).filter(Number.isFinite));
+    results[t.key] = BTR.checkTest(t.key, job.tests[t.key].slips, m, { capMode: settings.capMode, otherTestNos: others });
+  }
+  return results;
+}
+function fillable(key) {
+  const r = results[key], t = job.tests[key];
+  return !!(job.selected[key] && r && (r.status === 'pass' || (r.status === 'warn' && t.accepted)));
+}
+function statusOf(key) {
+  const m = machine(), r = results[key];
+  if (busy[key]) return { cls: 'busy', text: 'Reading…' };
+  if (!m) return { cls: 'idle', text: 'Pick machine' };
+  if (r && r.status === 'na') return { cls: 'na', text: 'N/A' };
+  if (!job.selected[key]) return { cls: 'idle', text: 'Not recording' };
+  switch (r && r.status) {
+    case 'pass': return { cls: 'pass', text: 'In spec' };
+    case 'warn': return job.tests[key].accepted ? { cls: 'accepted', text: 'Accepted' } : { cls: 'warn', text: 'Warning' };
+    case 'fail': return { cls: 'fail', text: 'Out of spec' };
+    default: return { cls: 'idle', text: job.tests[key].slips.length < 2 ? 'Needs slips' : 'Check values' };
+  }
+}
+
+/* ---------- Machine card ---------- */
+function buildMachineSelect() {
+  const sel = $('#machine');
+  const types = [...new Set(BTR.MACHINES.map(m => m.type))];
+  sel.innerHTML = '<option value="">Choose a machine…</option>' + types.map(type =>
+    `<optgroup label="${esc(type)}">` + BTR.MACHINES.filter(m => m.type === type).map(m =>
+      `<option value="${m.id}">${esc(m.model)} · ${esc(type)}${m.secondary ? '' : ' (service only)'}</option>`).join('') + '</optgroup>').join('');
+}
+function renderLimits() {
+  const m = machine(), el = $('#limits');
+  if (!m) { el.hidden = true; return; }
+  const s = m.service, c = m.secondary;
+  el.innerHTML = `<div><b>Service</b> ≥ ${s.unladen}% unladen · ≥ ${s.laden}% laden · ≤ ${s.resp} s · ${BTR.speedRangeText(s)}</div>` +
+    (c ? `<div><b>Secondary</b> ≥ ${c.unladen}% unladen · ≥ ${c.laden}% laden · ≤ ${c.resp} s · ${BTR.speedRangeText(c)}</div>`
+       : `<div><b>Secondary</b> not required. N/A on the form.</div>`);
+  el.hidden = false;
+}
+function fillMachineCard() {
+  $$('#machineCard [data-job]').forEach(el => { el.value = job[el.dataset.job] || ''; });
+  ['skidService', 'skidSecondary', 'finalNote'].forEach(id => { $('#' + id).value = job[id] || ''; });
+  $('#parkRev').value = job.park.rev.gradient || '';
+  $('#parkFwd').value = job.park.fwd.gradient || '';
+  renderPark();
+  renderLimits();
+}
+function serialHint() {
+  const el = $('#serialHint');
+  const hits = BTR.machinesForSerial(job.serial);
+  el.hidden = true; el.className = 'hint';
+  if (!hits.length) return;
+  if (!job.machineId && hits.length === 1) {
+    setMachine(hits[0].id); $('#machine').value = hits[0].id;
+    el.textContent = `Picked ${hits[0].model} ${hits[0].type} from the serial number.`; el.hidden = false;
+  } else if (hits.length > 1 && !hits.some(h => h.id === job.machineId)) {
+    el.textContent = `Serial matches ${hits[0].model}. Pick ${hits.map(h => h.type).join(' or ')} above.`; el.className = 'hint warn'; el.hidden = false;
+  } else if (job.machineId && !hits.some(h => h.id === job.machineId)) {
+    el.textContent = `Serial looks like a ${hits[0].model}, but ${machine().model} is selected. Check the machine.`; el.className = 'hint warn'; el.hidden = false;
+  }
+}
+function setMachine(id) {
+  job.machineId = id;
+  const m = machine();
+  if (m && !job.descEdited) { job.description = m.description; $('#description').value = job.description; }
+  renderLimits(); refreshAll();
+}
+
+$('#machineCard').addEventListener('input', e => {
+  const k = e.target.dataset.job; if (!k) return;
+  let v = e.target.value;
+  if (k === 'machineId') return; // handled on change
+  if (k === 'unitId' || k === 'serial') { const pos = e.target.selectionStart; v = v.toUpperCase(); e.target.value = v; try { e.target.setSelectionRange(pos, pos); } catch (er) {} }
+  job[k] = v;
+  if (k === 'description') job.descEdited = v.trim() !== '' && (!machine() || v !== machine().description);
+  if (k === 'serial') serialHint();
+  if (k === 'date') renderFinish();
+  save();
+});
+$('#machine').addEventListener('change', e => { setMachine(e.target.value); serialHint(); save(); });
+$('#parkCard').addEventListener('input', e => {
+  const k = e.target.dataset.job, p = e.target.dataset.park;
+  if (k) job[k] = e.target.value;
+  if (p) { job.park[p].gradient = e.target.value.trim(); settings.lastGradient = e.target.value.trim(); }
+  renderFinish(); save();
+});
+$('#parkCard').addEventListener('click', e => {
+  const b = e.target.closest('[data-park-seg] button'); if (!b) return;
+  const p = b.parentElement.dataset.parkSeg;
+  job.park[p].result = job.park[p].result === b.dataset.val ? '' : b.dataset.val;
+  renderPark(); renderFinish(); save();
+});
+function renderPark() {
+  $$('[data-park-seg]').forEach(seg => {
+    const r = job.park[seg.dataset.parkSeg].result;
+    $$('button', seg).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.val === r)));
+  });
+}
+
+/* ---------- Test tiles ---------- */
+const photos = new Map(); // id -> { url, key }
+const FIELD_UI = [
+  ['testNo', 'Test no.', '', 'numeric'], ['speed', 'Speed', 'km/h', 'decimal'], ['slope', 'Slope', '%', 'decimal'],
+  ['capability', 'Capability', '%', 'decimal'], ['reaction', 'Reaction', 's', 'decimal'], ['performance', 'Performance', '%g', 'decimal'],
+];
+function receiptHTML(s, i) {
+  const rows = FIELD_UI.map(([k, label, unit, mode]) => {
+    const v = s.values[k] == null ? '' : s.values[k];
+    const c = s.conf[k];
+    const flag = v === '' || (c != null && c < 75);
+    return `<label class="r-row"><span>${label}</span><span class="r-val"><input data-slip="${s.id}" data-field="${k}" value="${esc(v)}" inputmode="${mode}" autocomplete="off" spellcheck="false" class="${flag ? 'flag' : ''}">${unit ? `<i>${unit}</i>` : ''}</span></label>`;
+  }).join('');
+  return `<div class="receipt"><div class="r-head"><span>Slip ${i + 1}</span><button type="button" class="r-del" data-act="del-slip" data-slip="${s.id}" aria-label="Remove slip ${i + 1}">×</button></div>${rows}</div>`;
+}
+function verdictHTML(key) {
+  const r = results[key], t = job.tests[key];
+  if (!r) return '';
+  const icon = { ok: '✓', warn: '!', fail: '✕', info: 'i' };
+  let html = '<ul class="checks">' + r.items.map(i => `<li><span class="mark ${i.level}" aria-hidden="true">${icon[i.level] || 'i'}</span><span>${esc(i.text)}</span></li>`).join('') + '</ul>';
+  if (r.status === 'warn') {
+    html += `<label class="accept"><input type="checkbox" data-act="accept" ${t.accepted ? 'checked' : ''}><span>I've checked the warning. Put this test on the form anyway.</span></label>`;
+  }
+  if (r.status === 'fail') html += '<p class="note">Out of spec. This test stays off the form.</p>';
+  return html;
+}
+function tileHTML(t) {
+  const m = machine(), lim = BTR.limitsFor(m, t.key), na = m && !lim;
+  const sel = job.selected[t.key] && !na, st = statusOf(t.key), T = job.tests[t.key];
+  const sub = t.sub + (lim ? ` · min ${lim.min}% · max ${lim.resp} s · ${BTR.speedRangeText(lim)}` : '');
+  let body = '';
+  if (na) body = '<p class="na-note">No secondary test for this machine. The form shows N/A.</p>';
+  else if (sel) {
+    const slips = T.slips.slice(0, 2);
+    const thumbs = [...new Set(T.slips.map(s => s.photo).filter(Boolean))].filter(id => photos.has(id));
+    const flagged = slips.some(s => FIELD_UI.some(([k]) => s.values[k] != null && s.values[k] !== '' && s.conf[k] != null && s.conf[k] < 75));
+    body = `<div class="test-body">
+      <div class="row">
+        <button type="button" class="btn solid" data-act="cam"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Take photo</button>
+        <button type="button" class="btn" data-act="gal">From photos</button>
+        <button type="button" class="btn quiet" data-act="manual">Type in</button>
+      </div>
+      ${busy[t.key] ? `<div class="progress"><span class="spin" aria-hidden="true"></span><span class="ptext">${esc(busy[t.key])}</span></div>` : ''}
+      ${T.note ? `<p class="note">${esc(T.note)}</p>` : ''}
+      ${thumbs.length ? `<div class="thumbs">${thumbs.map(id => `<button type="button" data-act="view" data-photo="${id}" aria-label="View photo"><img src="${photos.get(id).url}" alt=""></button>`).join('')}</div>` : ''}
+      ${slips.length ? `<div class="slips">${slips.map(receiptHTML).join('')}${slips.length < 2 ? '<div class="receipt empty">Slip 2<br>Take another photo, or type it in</div>' : ''}</div>` : ''}
+      ${flagged ? '<p class="flag-note"><mark>Highlighted</mark> numbers were hard to read. Check them against the slip.</p>' : ''}
+      <div class="verdict" data-verdict>${verdictHTML(t.key)}</div>
+      ${slips.some(s => s.raw) ? `<details class="raw"><summary>What the reader saw</summary><pre>${slips.map((s, i) => `Slip ${i + 1}\n${esc(s.raw || '(typed in)')}`).join('\n\n')}</pre></details>` : ''}
+    </div>`;
+  }
+  return `<article class="test" data-key="${t.key}" data-status="${st.cls}">
+    <div class="test-head" data-act="toggle">
+      <span class="tick"><input type="checkbox" data-act="select" aria-label="Record ${esc(t.label)} ${esc(t.sub)}" ${sel ? 'checked' : ''} ${na || !m ? 'disabled' : ''}><span></span></span>
+      <div class="test-title"><b>${esc(t.label)}</b><span>${esc(sub)}</span></div>
+      <span class="pill ${st.cls}">${st.text}</span>
+    </div>${body}</article>`;
+}
+function renderTests() { $('#testList').innerHTML = BTR.TESTS.map(tileHTML).join(''); }
+function renderTile(key) {
+  const el = $(`.test[data-key="${key}"]`);
+  if (el) el.outerHTML = tileHTML(BTR.TESTS.find(t => t.key === key));
+}
+function updateTileStatus(key) {
+  const el = $(`.test[data-key="${key}"]`); if (!el) return;
+  const st = statusOf(key);
+  el.dataset.status = st.cls;
+  const pill = $('.pill', el); pill.className = 'pill ' + st.cls; pill.textContent = st.text;
+  const v = $('[data-verdict]', el); if (v) v.innerHTML = verdictHTML(key);
+}
+function refreshAll() { computeResults(); renderTests(); renderFinish(); }
+function refreshStatuses() { computeResults(); BTR.TESTS.forEach(t => updateTileStatus(t.key)); renderFinish(); }
+
+const testList = $('#testList');
+let pendingKey = null;
+testList.addEventListener('click', e => {
+  const tile = e.target.closest('.test'); if (!tile) return;
+  const key = tile.dataset.key;
+  const act = e.target.closest('[data-act]');
+  if (!act) return;
+  const a = act.dataset.act;
+  if (a === 'toggle') {
+    if (e.target.closest('.tick')) return; // the checkbox handles itself
+    const cb = $('input[data-act="select"]', tile);
+    if (cb.disabled) { if (!machine()) toast('Choose the machine first.'); return; }
+    cb.checked = !cb.checked; cb.dispatchEvent(new Event('change', { bubbles: true }));
+  } else if (a === 'cam' || a === 'gal') {
+    pendingKey = key; (a === 'cam' ? $('#camIn') : $('#galIn')).click();
+  } else if (a === 'manual') {
+    const T = job.tests[key];
+    if (T.slips.length >= 2) { toast('This test already has 2 slips. Remove one first.'); return; }
+    T.slips.push({ id: uid(), values: {}, conf: {}, raw: '' }); T.accepted = false; T.note = '';
+    computeResults(); renderTile(key); renderFinish(); save();
+    const inp = $(`.test[data-key="${key}"] .receipt:nth-child(${T.slips.length}) input`); if (inp) inp.focus();
+  } else if (a === 'del-slip') {
+    const T = job.tests[key]; T.slips = T.slips.filter(s => s.id !== act.dataset.slip); T.accepted = false;
+    computeResults(); renderTile(key); renderFinish(); save();
+  } else if (a === 'view') {
+    const p = photos.get(act.dataset.photo); if (p) { $('#viewerImg').src = p.url; $('#viewer').hidden = false; }
+  }
+});
+testList.addEventListener('change', e => {
+  const tile = e.target.closest('.test'); if (!tile) return;
+  const key = tile.dataset.key, a = e.target.dataset.act;
+  if (a === 'select') { job.selected[key] = e.target.checked; computeResults(); renderTests(); renderFinish(); save(); }
+  if (a === 'accept') { job.tests[key].accepted = e.target.checked; updateTileStatus(key); renderFinish(); save(); }
+});
+testList.addEventListener('input', e => {
+  const inp = e.target.closest('input[data-field]'); if (!inp) return;
+  const key = inp.closest('.test').dataset.key, T = job.tests[key];
+  const s = T.slips.find(x => x.id === inp.dataset.slip); if (!s) return;
+  s.values[inp.dataset.field] = inp.value.trim().replace(',', '.');
+  s.conf[inp.dataset.field] = 100; inp.classList.remove('flag');
+  T.accepted = false;
+  refreshStatuses(); save();
+});
+$('#viewer').addEventListener('click', () => { $('#viewer').hidden = true; });
+
+/* ---------- Reading slips ---------- */
+const OCR = {
+  worker: null, loading: null, onLog: null,
+  load() {
+    if (this.worker) return Promise.resolve(this.worker);
+    if (!this.loading) {
+      this.loading = (async () => {
+        if (!window.Tesseract) await loadScript(TESSERACT_URL);
+        const w = await Tesseract.createWorker('eng', 1, {
+          workerPath: new URL('ocr-worker.js', location.href).href, workerBlobURL: false,
+          logger: m => { if (OCR.onLog) OCR.onLog(m); },
+        });
+        await w.setParameters({ preserve_interword_spaces: '1' });
+        this.worker = w; settings.ocrReady = true; save(); renderOcrStatus();
+        return w;
+      })().catch(err => { this.loading = null; throw err; });
+    }
+    return this.loading;
+  },
+};
+const LOG_TEXT = {
+  'loading tesseract core': 'Downloading the slip reader (first time only)',
+  'initializing tesseract': 'Starting the slip reader',
+  'loading language traineddata': 'Downloading the slip reader (first time only)',
+  'loading language traineddata (from cache)': 'Starting the slip reader',
+  'initializing api': 'Starting the slip reader',
+  'recognizing text': 'Reading',
+};
+
+function loadImage(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => res({ img, url });
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('That photo could not be opened.')); };
+    img.src = url;
+  });
+}
+/** Scale, greyscale and even out shadows so faded thermal print stands out. */
+function prepare(img) {
+  const W0 = img.naturalWidth, H0 = img.naturalHeight;
+  const long = Math.max(W0, H0);
+  const scale = long > 2000 ? 2000 / long : long < 1300 ? 1300 / long : 1;
+  const w = Math.round(W0 * scale), h = Math.round(H0 * scale);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, w, h);
+  const im = ctx.getImageData(0, 0, w, h), d = im.data, n = w * h;
+  const g = new Uint8ClampedArray(n);
+  for (let i = 0, j = 0; i < n; i++, j += 4) g[i] = (d[j] * 77 + d[j + 1] * 150 + d[j + 2] * 29) >> 8;
+  const W1 = w + 1, I = new Uint32Array(W1 * (h + 1));
+  for (let y = 1; y <= h; y++) {
+    let row = 0;
+    for (let x = 1; x <= w; x++) { row += g[(y - 1) * w + x - 1]; I[y * W1 + x] = I[(y - 1) * W1 + x] + row; }
+  }
+  const r = Math.max(10, Math.round(Math.min(w, h) / 22));
+  for (let y = 0; y < h; y++) {
+    const y0 = Math.max(0, y - r), y1 = Math.min(h, y + r + 1);
+    for (let x = 0; x < w; x++) {
+      const x0 = Math.max(0, x - r), x1 = Math.min(w, x + r + 1);
+      const sum = I[y1 * W1 + x1] - I[y0 * W1 + x1] - I[y1 * W1 + x0] + I[y0 * W1 + x0];
+      const mean = sum / ((y1 - y0) * (x1 - x0));
+      // Ratio to the local background: paper -> white, print -> dark, shadows evened out.
+      let v = (g[y * w + x] / (mean > 1 ? mean : 1) - 0.45) * 542.5; // 255 / (0.92 - 0.45)
+      v = v < 0 ? 0 : v > 255 ? 255 : v;
+      const k = (y * w + x) * 4; d[k] = d[k + 1] = d[k + 2] = v;
+    }
+  }
+  ctx.putImageData(im, 0, 0);
+  return c;
+}
+function rotate(src, deg) {
+  if (!deg) return src;
+  const c = document.createElement('canvas');
+  const swap = deg % 180 !== 0;
+  c.width = swap ? src.height : src.width; c.height = swap ? src.width : src.height;
+  const ctx = c.getContext('2d');
+  ctx.translate(c.width / 2, c.height / 2); ctx.rotate(deg * Math.PI / 180);
+  ctx.drawImage(src, -src.width / 2, -src.height / 2);
+  return c;
+}
+function wordsFrom(data) {
+  let ws = Array.isArray(data.words) && data.words.length ? data.words : [];
+  if (!ws.length) {
+    for (const b of data.blocks || []) for (const p of b.paragraphs || []) for (const l of p.lines || []) for (const w of l.words || []) ws.push(w);
+  }
+  return ws.filter(w => w && w.bbox && String(w.text || '').trim())
+    .map(w => ({ text: w.text, conf: w.confidence, x0: w.bbox.x0, y0: w.bbox.y0, x1: w.bbox.x1, y1: w.bbox.y1 }));
+}
+
+let queue = Promise.resolve();
+function setBusy(key, text) {
+  busy[key] = text;
+  const el = $(`.test[data-key="${key}"] .ptext`);
+  if (el && text) el.textContent = text; else renderTile(key);
+}
+
+async function readPhoto(key, file, n, total) {
+  const label = total > 1 ? `photo ${n} of ${total}` : 'photo';
+  setBusy(key, `Opening ${label}`);
+  const { img, url } = await loadImage(file);
+  const photoId = uid(); photos.set(photoId, { url, key });
+  const base = prepare(img);
+  OCR.onLog = m => {
+    const txt = LOG_TEXT[m.status];
+    if (!txt) return;
+    const pct = m.progress > 0 && m.progress < 1 ? ` ${Math.round(m.progress * 100)}%` : '';
+    setBusy(key, (txt === 'Reading' ? `Reading ${label}` : txt) + pct);
+  };
+  const worker = await OCR.load();
+  await worker.setParameters({ tessedit_pageseg_mode: '3', tessedit_char_whitelist: '' });
+
+  let best = null;
+  for (const deg of [0, 90, 270, 180]) {
+    const canvas = rotate(base, deg);
+    const { data } = await worker.recognize(canvas, {}, { blocks: true, text: true });
+    const slips = BTR.readSlips(wordsFrom(data));
+    const score = BTR.slipScore(slips);
+    if (!best || score > best.score) best = { slips, score, canvas };
+    if (slips.length && score >= 4 * slips.length) break; // found most fields, orientation is right
+    if (deg === 0) setBusy(key, `Turning ${label} to find the text`);
+  }
+  OCR.onLog = null;
+  if (!best || !best.slips.length) return { photoId, slips: [] };
+
+  // Second look at each number, digits only, to catch misreads.
+  setBusy(key, `Double-checking numbers on ${label}`);
+  const c = best.canvas;
+  for (const s of best.slips) {
+    for (const [field, b] of Object.entries(s.boxes || {})) {
+      const lineH = Math.max(8, b.y1 - b.y0), pad = lineH * 0.35;
+      const x0 = Math.max(0, Math.floor(b.x0 + 1)), y0 = Math.max(0, Math.floor(b.y0 - pad));
+      const x1 = Math.min(c.width, Math.ceil(b.x1 + pad * 4)), y1 = Math.min(c.height, Math.ceil(b.y1 + pad));
+      if (x1 - x0 < 6 || y1 - y0 < 6) continue;
+      const k = Math.min(3, Math.max(1, 64 / (y1 - y0)));
+      const crop = document.createElement('canvas');
+      crop.width = Math.round((x1 - x0) * k); crop.height = Math.round((y1 - y0) * k);
+      const cx = crop.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, crop.width, crop.height);
+      cx.drawImage(c, x0, y0, x1 - x0, y1 - y0, 0, 0, crop.width, crop.height);
+      await worker.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: field === 'testNo' ? '0123456789' : '0123456789.-%sgkmh/' });
+      try {
+        const { data } = await worker.recognize(crop);
+        const merged = BTR.mergeReads(field, s.values[field], s.conf[field], data.text, data.confidence);
+        if (window.__debugReads) window.__debugReads.push({ field, first: s.values[field], firstConf: s.conf[field], second: data.text, secondConf: data.confidence, merged });
+        s.values[field] = merged.value; s.conf[field] = Math.round(merged.conf);
+      } catch (e) { /* keep the first read */ }
+    }
+    delete s.boxes;
+  }
+  await worker.setParameters({ tessedit_pageseg_mode: '3', tessedit_char_whitelist: '' });
+  return { photoId, slips: best.slips };
+}
+
+function addSlips(key, found, photoId) {
+  const T = job.tests[key];
+  for (const s of found) {
+    const slip = { id: uid(), values: s.values, conf: s.conf, raw: s.raw, photo: photoId };
+    const same = T.slips.findIndex(x => x.values.testNo && x.values.testNo === slip.values.testNo);
+    if (same >= 0) T.slips[same] = slip; else T.slips.push(slip);
+  }
+  let note = '';
+  if (T.slips.length > 2) { T.slips = T.slips.slice(-2); note = 'Kept the 2 most recent slips.'; }
+  T.accepted = false;
+  return note;
+}
+
+function handleFiles(files) {
+  const key = pendingKey; if (!key || !files.length) return;
+  files.forEach((file, i) => {
+    queue = queue.then(async () => {
+      const T = job.tests[key];
+      T.note = '';
+      try {
+        const { photoId, slips } = await readPhoto(key, file, i + 1, files.length);
+        if (!slips.length) T.note = 'Couldn’t find slip values in that photo. Retake it flat, close and in good light, or type the values in.';
+        else {
+          const extra = addSlips(key, slips, photoId);
+          const t = job.tests[key];
+          if (extra) T.note = extra;
+          else if (t.slips.length < 2) T.note = '';
+        }
+      } catch (err) {
+        T.note = err && err.message ? err.message : 'Something went wrong reading that photo. Try again or type the values in.';
+      }
+      delete busy[key];
+      computeResults(); renderTile(key); renderFinish(); save();
+    });
+  });
+}
+$('#camIn').addEventListener('change', e => { const f = [...e.target.files]; e.target.value = ''; handleFiles(f); });
+$('#galIn').addEventListener('change', e => { const f = [...e.target.files]; e.target.value = ''; handleFiles(f); });
+
+/* ---------- Finish ---------- */
+function renderFinish() {
+  const m = machine();
+  const rows = [];
+  for (const t of BTR.TESTS) {
+    const r = results[t.key], name = `${t.label.replace(' brake', '')} ${t.sub.toLowerCase()}`;
+    let txt, cls;
+    if (!m) { txt = '—'; cls = 'idle'; }
+    else if (r.status === 'na') { txt = 'N/A'; cls = 'idle'; }
+    else if (!job.selected[t.key]) { txt = 'Not recorded'; cls = 'idle'; }
+    else if (fillable(t.key)) { txt = r.status === 'warn' ? 'Goes on (warning accepted)' : 'Goes on the form'; cls = r.status === 'warn' ? 'warn' : 'ok'; }
+    else if (r.status === 'warn') { txt = 'Accept the warning first'; cls = 'warn'; }
+    else if (r.status === 'fail') { txt = 'Out of spec, left blank'; cls = 'fail'; }
+    else { txt = 'Not finished'; cls = 'idle'; }
+    rows.push(`<li><span>${esc(name)}</span><span class="${cls}">${esc(txt)}</span></li>`);
+  }
+  const park = job.park, pk = ['rev', 'fwd'].filter(k => park[k].gradient && park[k].result).length;
+  rows.push(`<li><span>Park brake</span><span class="${pk === 2 ? 'ok' : 'idle'}">${pk === 2 ? 'Both directions entered' : pk ? '1 of 2 entered' : 'Not entered'}</span></li>`);
+  $('#summary').innerHTML = rows.join('');
+
+  const warns = [];
+  if (!settings.testerName || !settings.certNo || !settings.competency) warns.push(['warn', 'Your name, cert # or competency number is missing. Add them in Settings.']);
+  const testDate = BTR.parseDMY(job.date);
+  settings.equipment.forEach(e => {
+    const due = BTR.parseDMY(e.nextCal);
+    if (e.id && due && testDate && due < testDate) warns.push(['fail', `${e.id} ${e.serial} was due for calibration on ${e.nextCal}.`]);
+  });
+  if (!m) warns.push(['info', 'Choose the machine to start.']);
+  $('#finishWarnings').innerHTML = warns.length ? '<ul class="checks">' + warns.map(([l, t]) => `<li><span class="mark ${l}" aria-hidden="true">${l === 'fail' ? '✕' : l === 'warn' ? '!' : 'i'}</span><span>${esc(t)}</span></li>`).join('') + '</ul>' : '';
+  $('#makePdf').disabled = !m;
+  updateBanner();
+}
+async function updateBanner() {
+  const t = await getTemplate();
+  const missing = [];
+  if (!settings.testerName) missing.push('your tester details');
+  if (!t) missing.push('the record sheet PDF');
+  $('#setupBanner').hidden = !missing.length;
+  if (missing.length) $('#setupText').textContent = `Add ${missing.join(' and ')} once. They stay on this phone.`;
+}
+
+let lastPdf = null, lastUrl = null;
+function fileName() {
+  const clean = s => String(s || '').replace(/[\\/:*?"<>|]+/g, '-').trim();
+  return `${clean(job.unitId) || 'Machine'} brake test ${clean(job.date)}.pdf`;
+}
+$('#makePdf').addEventListener('click', async () => {
+  const btn = $('#makePdf');
+  const t = await getTemplate();
+  if (!t) { toast('Load the record sheet PDF first.'); openSettings(); return; }
+  btn.disabled = true;
+  try {
+    computeResults();
+    const include = {}; BTR.TESTS.forEach(x => { include[x.key] = fillable(x.key); });
+    const model = BTR.buildFormModel(job, settings, results, include);
+    const bytes = await BTR.fillForm(PDFLib, t.bytes, model);
+    lastPdf = new File([bytes], fileName(), { type: 'application/pdf' });
+    if (lastUrl) URL.revokeObjectURL(lastUrl);
+    lastUrl = URL.createObjectURL(lastPdf);
+    $('#resultName').textContent = lastPdf.name;
+    $('#sharePdf').hidden = !(navigator.canShare && navigator.canShare({ files: [lastPdf] }));
+    $('#result').hidden = false;
+    $('#result').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch (err) {
+    toast(err && err.message ? err.message : 'The record sheet could not be filled.', 5000);
+  } finally { btn.disabled = !machine(); }
+});
+$('#sharePdf').addEventListener('click', async () => {
+  if (!lastPdf) return;
+  try { await navigator.share({ files: [lastPdf], title: lastPdf.name }); }
+  catch (err) { if (err && err.name !== 'AbortError') toast('Sharing didn’t work here. Use Save instead.'); }
+});
+$('#savePdf').addEventListener('click', () => {
+  if (!lastUrl) return;
+  const a = document.createElement('a'); a.href = lastUrl; a.download = lastPdf.name; document.body.appendChild(a); a.click(); a.remove();
+});
+$('#openPdf').addEventListener('click', () => { if (lastUrl) window.open(lastUrl, '_blank'); });
+
+let clearArmed = null;
+$('#newJob').addEventListener('click', () => {
+  const b = $('#newJob');
+  if (!clearArmed) {
+    b.textContent = 'Tap again to clear this machine'; b.classList.add('solid');
+    clearArmed = setTimeout(() => { clearArmed = null; b.textContent = 'Start next machine'; b.classList.remove('solid'); }, 3500);
+    return;
+  }
+  clearTimeout(clearArmed); clearArmed = null; b.textContent = 'Start next machine'; b.classList.remove('solid');
+  photos.forEach(p => URL.revokeObjectURL(p.url)); photos.clear();
+  job = newJob(); store(LS_JOB, job);
+  $('#result').hidden = true; lastPdf = null;
+  fillMachineCard(); $('#serialHint').hidden = true; refreshAll();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  toast('Cleared. Ready for the next machine.');
+});
+
+/* ---------- Settings ---------- */
+function renderEquipment() {
+  $('#eqList').innerHTML = settings.equipment.map((e, i) => `
+    <fieldset class="eq"><legend>Tester ${i + 1}${i ? ' (optional)' : ''}</legend>
+      <div class="grid2">
+        <label class="field">Test equipment ID<input data-eq="${i}" data-k="id" value="${esc(e.id)}" autocomplete="off"></label>
+        <label class="field">Tester serial no.<input data-eq="${i}" data-k="serial" value="${esc(e.serial)}" autocomplete="off" autocapitalize="characters"></label>
+        <label class="field">Last calibration<input data-eq="${i}" data-k="lastCal" value="${esc(e.lastCal)}" inputmode="numeric" placeholder="DD-MM-YYYY" autocomplete="off"></label>
+        <label class="field">Next calibration<input data-eq="${i}" data-k="nextCal" value="${esc(e.nextCal)}" inputmode="numeric" placeholder="DD-MM-YYYY" autocomplete="off"></label>
+      </div>
+    </fieldset>`).join('');
+}
+async function renderFormStatus() {
+  const t = await getTemplate(), el = $('#formStatus');
+  if (!t) { el.textContent = 'No record sheet loaded yet.'; el.className = 'status-line warn'; return; }
+  el.textContent = t.source === 'app' ? 'Using the record sheet that came with this app.' : `Loaded: ${t.name}`;
+  el.className = 'status-line ok';
+}
+function renderOcrStatus() {
+  const el = $('#ocrStatus'); if (!el) return;
+  if (OCR.worker || settings.ocrReady) { el.textContent = 'Slip reader downloaded. Works with no signal.'; el.className = 'status-line ok'; }
+}
+function openSettings() {
+  $$('#settings [data-set]').forEach(el => { el.value = settings[el.dataset.set] || ''; });
+  $$('#settings input[name="capMode"]').forEach(r => { r.checked = r.value === (settings.capMode || 'relative'); });
+  renderEquipment(); renderFormStatus(); renderOcrStatus();
+  $('#settings').hidden = false; document.body.style.overflow = 'hidden';
+}
+function closeSettings() {
+  $('#settings').hidden = true; document.body.style.overflow = '';
+  save(); refreshAll();
+}
+$('#openSettings').addEventListener('click', openSettings);
+document.addEventListener('click', e => { if (e.target.closest('[data-open-settings]')) openSettings(); });
+$('#closeSettings').addEventListener('click', closeSettings);
+$('#settings').addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.set) settings[el.dataset.set] = el.value;
+  if (el.dataset.eq != null) settings.equipment[+el.dataset.eq][el.dataset.k] = el.value;
+  if (el.name === 'capMode') settings.capMode = el.value;
+  save();
+});
+$('#settings').addEventListener('change', e => { if (e.target.name === 'capMode') { settings.capMode = e.target.value; save(); } });
+$('#loadForm').addEventListener('click', () => $('#formIn').click());
+$('#formIn').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { await useTemplateFile(f); toast('Record sheet saved on this phone.'); }
+  catch (err) { toast(err.message, 5000); }
+  renderFormStatus(); updateBanner();
+});
+$('#prepOcr').addEventListener('click', async () => {
+  const el = $('#ocrStatus'), b = $('#prepOcr');
+  b.disabled = true; el.className = 'status-line'; el.textContent = 'Downloading…';
+  OCR.onLog = m => { const t = LOG_TEXT[m.status]; if (t) el.textContent = t + (m.progress > 0 && m.progress < 1 ? ` ${Math.round(m.progress * 100)}%` : ''); };
+  try { await OCR.load(); renderOcrStatus(); }
+  catch (err) { el.textContent = err.message; el.className = 'status-line warn'; }
+  OCR.onLog = null; b.disabled = false;
+});
+
+/* ---------- Start ---------- */
+const C = BTR.CRITERIA;
+$('#critLine').textContent = `Criteria issue ${C.issue} · ${BTR.MACHINES.length} machine types`;
+$('#critAbout').textContent = `${C.name}, issue ${C.issue} (${C.date}). ${BTR.MACHINES.length} machine types. Fills the WHC-QLD-FRM Mandatory Brake Test Record Sheet, issue 3.0.`;
+buildMachineSelect();
+fillMachineCard();
+refreshAll();
+serialHint();
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
+</script>
+</body>
+</html>

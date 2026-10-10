@@ -1,0 +1,16 @@
+{
+  "name": "Brake Test Recorder",
+  "short_name": "Brake Tests",
+  "description": "Photograph HV brake tester slips, check them against the site criteria and fill the brake test record sheet.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e7ebee",
+  "theme_color": "#1b2127",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
