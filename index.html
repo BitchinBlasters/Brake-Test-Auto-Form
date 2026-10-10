@@ -180,6 +180,9 @@ details.raw pre { white-space: pre-wrap; font: .78rem/1.4 var(--f-mono); backgro
 .unit-in { position: relative; }
 .unit-in input { padding-right: 34px; }
 .unit-in i { position: absolute; right: 12px; bottom: 14px; font-style: normal; color: var(--muted); font-weight: 600; }
+.unit-in.wide input { padding-right: 58px; }
+.custom { display: grid; gap: 12px; }
+.custom .grid2 { align-items: end; }
 
 /* Finish */
 .summary { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; border-top: 1px solid var(--line); }
@@ -239,6 +242,32 @@ details.raw pre { white-space: pre-wrap; font: .78rem/1.4 var(--f-mono); backgro
     </label>
     <p class="hint" id="serialHint" hidden></p>
     <div class="limits" id="limits" hidden></div>
+    <div class="custom" id="customPanel" hidden>
+      <p class="hint">Not on the criteria sheet. Enter its limits from the site criteria or OEM baseline.</p>
+      <div class="grid2">
+        <label class="field">Machine type<input data-custom="type" autocomplete="off" placeholder="e.g. Dozer"></label>
+        <label class="field">Model<input data-custom="model" autocomplete="off" autocapitalize="characters" placeholder="e.g. D11T"></label>
+      </div>
+      <fieldset class="eq"><legend>Service brake</legend>
+        <div class="grid2">
+          <label class="field">Min unladen<span class="unit-in"><input data-custom="svcUL" inputmode="decimal" autocomplete="off" placeholder="e.g. 26.9"><i>%</i></span></label>
+          <label class="field">Min laden<span class="unit-in"><input data-custom="svcL" inputmode="decimal" autocomplete="off" placeholder="e.g. 19.5"><i>%</i></span></label>
+          <label class="field">Max response<span class="unit-in"><input data-custom="svcResp" inputmode="decimal" autocomplete="off" placeholder="e.g. 2"><i>s</i></span></label>
+          <label class="field">Speed from<span class="unit-in wide"><input data-custom="svcSpeedMin" inputmode="decimal" autocomplete="off" placeholder="e.g. 15"><i>km/h</i></span></label>
+          <label class="field">Speed to<span class="unit-in wide"><input data-custom="svcSpeedMax" inputmode="decimal" autocomplete="off" placeholder="e.g. 32"><i>km/h</i></span></label>
+        </div>
+      </fieldset>
+      <fieldset class="eq"><legend>Secondary brake</legend>
+        <label class="radio"><input type="checkbox" data-custom="noSecondary"> <span>No secondary brake test. N/A on the form.</span></label>
+        <div class="grid2" id="customSec">
+          <label class="field">Min unladen<span class="unit-in"><input data-custom="secUL" inputmode="decimal" autocomplete="off" placeholder="e.g. 18.1"><i>%</i></span></label>
+          <label class="field">Min laden<span class="unit-in"><input data-custom="secL" inputmode="decimal" autocomplete="off" placeholder="e.g. 14.2"><i>%</i></span></label>
+          <label class="field">Max response<span class="unit-in"><input data-custom="secResp" inputmode="decimal" autocomplete="off" placeholder="e.g. 3"><i>s</i></span></label>
+          <label class="field">Speed under<span class="unit-in wide"><input data-custom="secSpeedMax" inputmode="decimal" autocomplete="off" placeholder="e.g. 20"><i>km/h</i></span></label>
+        </div>
+      </fieldset>
+      <p class="small">Speeds are optional. Leave them blank to skip the test speed check.</p>
+    </div>
     <div class="grid2">
       <label class="field">Unit ID / Rego<input id="unitId" data-job="unitId" autocomplete="off" autocapitalize="characters" placeholder="e.g. WT16"></label>
       <label class="field">Serial / VIN<input id="serial" data-job="serial" autocomplete="off" autocapitalize="characters" placeholder="e.g. SPD00814"></label>
@@ -329,12 +358,6 @@ details.raw pre { white-space: pre-wrap; font: .78rem/1.4 var(--f-mono); backgro
       <label class="field">Closing comment<textarea id="sNote" data-set="finalNote" rows="2"></textarea></label>
     </section>
     <section class="card">
-      <h2 class="h2">Capability check</h2>
-      <p class="small">How the 5% / 10% difference between the two slips is worked out. Speed always uses % of the reading.</p>
-      <label class="radio"><input type="radio" name="capMode" value="relative"> <span><b>% of the reading.</b> 34% and 36% are 5.7% apart.</span></label>
-      <label class="radio"><input type="radio" name="capMode" value="points"> <span><b>Percentage points.</b> 34% and 36% are 2 points apart.</span></label>
-    </section>
-    <section class="card">
       <h2 class="h2">Record sheet PDF</h2>
       <p class="status-line" id="formStatus">Checking…</p>
       <p class="small">Use any copy of the WHC-QLD-FRM Mandatory Brake Test Record Sheet (Issue 3.0), blank or already filled in. Anything typed on it is cleared first.</p>
@@ -390,26 +413,29 @@ const DEFAULT_SETTINGS = {
   ],
   skidText: 'Even & Consistent',
   finalNote: 'Post testing visual inspection found no leaks nor any signs of damage.',
-  capMode: 'relative',
   lastGradient: '',
   ocrReady: false,
 };
 let settings = Object.assign({}, DEFAULT_SETTINGS, load(LS_SETTINGS, {}));
 if (!Array.isArray(settings.equipment) || settings.equipment.length < 3) settings.equipment = DEFAULT_SETTINGS.equipment.map(e => Object.assign({}, e));
 
+function blankCustom() {
+  const c = {}; BTR.CUSTOM_FIELDS.forEach(k => { c[k] = k === 'noSecondary' ? false : ''; }); return c;
+}
 function newJob() {
   const tests = {};
   BTR.TESTS.forEach(t => { tests[t.key] = { slips: [], accepted: false, note: '' }; });
   return {
     machineId: '', unitId: '', serial: '', hours: '', wo: '', payload: '',
     date: BTR.todayDMY(), time: BTR.nowHM(), description: '', descEdited: false,
-    selected: { svcUL: false, svcL: false, secUL: false, secL: false }, tests,
+    selected: { svcUL: false, svcL: false, secUL: false, secL: false }, tests, custom: blankCustom(),
     park: { rev: { gradient: settings.lastGradient || '', result: '' }, fwd: { gradient: settings.lastGradient || '', result: '' } },
     skidService: settings.skidText, skidSecondary: settings.skidText, finalNote: settings.finalNote,
   };
 }
 let job = load(LS_JOB, null);
 if (!job || !job.tests) job = newJob();
+if (!job.custom) job.custom = blankCustom();
 BTR.TESTS.forEach(t => { if (!job.tests[t.key]) job.tests[t.key] = { slips: [], accepted: false, note: '' }; });
 
 let saveTimer = null;
@@ -460,7 +486,8 @@ async function useTemplateFile(file) {
 }
 
 /* ---------- Helpers ---------- */
-const machine = () => BTR.machineById(job.machineId);
+const machine = () => BTR.resolveMachine(job);
+const lv = v => (Number.isFinite(v) ? v : '?'); // a limit, or ? while an "Other" limit is blank
 let toastTimer = null;
 function toast(msg, ms = 3200) {
   const t = $('#toast'); t.textContent = msg; t.hidden = false;
@@ -483,7 +510,7 @@ function computeResults() {
   for (const t of BTR.TESTS) {
     const others = BTR.TESTS.filter(o => o.key !== t.key && job.selected[o.key])
       .flatMap(o => job.tests[o.key].slips.map(s => BTR.num(s.values.testNo)).filter(Number.isFinite));
-    results[t.key] = BTR.checkTest(t.key, job.tests[t.key].slips, m, { capMode: settings.capMode, otherTestNos: others });
+    results[t.key] = BTR.checkTest(t.key, job.tests[t.key].slips, m, { otherTestNos: others });
   }
   return results;
 }
@@ -511,11 +538,14 @@ function buildMachineSelect() {
   const types = [...new Set(BTR.MACHINES.map(m => m.type))];
   sel.innerHTML = '<option value="">Choose a machine…</option>' + types.map(type =>
     `<optgroup label="${esc(type)}">` + BTR.MACHINES.filter(m => m.type === type).map(m =>
-      `<option value="${m.id}">${esc(m.model)} · ${esc(type)}${m.secondary ? '' : ' (service only)'}</option>`).join('') + '</optgroup>').join('');
+      `<option value="${m.id}">${esc(m.model)} · ${esc(type)}${m.secondary ? '' : ' (service only)'}</option>`).join('') + '</optgroup>').join('') +
+    `<optgroup label="Other"><option value="${BTR.OTHER_ID}">Other (not listed) · enter limits</option></optgroup>`;
 }
 function renderLimits() {
   const m = machine(), el = $('#limits');
-  if (!m) { el.hidden = true; return; }
+  $('#customPanel').hidden = !(m && m.custom);
+  $('#customSec').hidden = !!job.custom.noSecondary;
+  if (!m || m.custom) { el.hidden = true; return; }
   const s = m.service, c = m.secondary;
   el.innerHTML = `<div><b>Service</b> ≥ ${s.unladen}% unladen · ≥ ${s.laden}% laden · ≤ ${s.resp} s · ${BTR.speedRangeText(s)}</div>` +
     (c ? `<div><b>Secondary</b> ≥ ${c.unladen}% unladen · ≥ ${c.laden}% laden · ≤ ${c.resp} s · ${BTR.speedRangeText(c)}</div>`
@@ -524,6 +554,10 @@ function renderLimits() {
 }
 function fillMachineCard() {
   $$('#machineCard [data-job]').forEach(el => { el.value = job[el.dataset.job] || ''; });
+  $$('#customPanel [data-custom]').forEach(el => {
+    const v = job.custom[el.dataset.custom];
+    if (el.type === 'checkbox') el.checked = !!v; else el.value = v || '';
+  });
   ['skidService', 'skidSecondary', 'finalNote'].forEach(id => { $('#' + id).value = job[id] || ''; });
   $('#parkRev').value = job.park.rev.gradient || '';
   $('#parkFwd').value = job.park.fwd.gradient || '';
@@ -550,9 +584,15 @@ function setMachine(id) {
   if (m && !job.descEdited) { job.description = m.description; $('#description').value = job.description; }
   renderLimits(); refreshAll();
 }
+$('#customPanel').addEventListener('input', e => {
+  const k = e.target.dataset.custom; if (!k) return;
+  job.custom[k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value.trim().replace(',', '.');
+  if ((k === 'type' || k === 'model') && !job.descEdited) { job.description = machine().description; $('#description').value = job.description; }
+  renderLimits(); refreshAll(); save();
+});
 
 $('#machineCard').addEventListener('input', e => {
-  const k = e.target.dataset.job; if (!k) return;
+  const k = e.target.dataset.job; if (!k || e.target.closest('#customPanel')) return;
   let v = e.target.value;
   if (k === 'machineId') return; // handled on change
   if (k === 'unitId' || k === 'serial') { const pos = e.target.selectionStart; v = v.toUpperCase(); e.target.value = v; try { e.target.setSelectionRange(pos, pos); } catch (er) {} }
@@ -611,7 +651,8 @@ function verdictHTML(key) {
 function tileHTML(t) {
   const m = machine(), lim = BTR.limitsFor(m, t.key), na = m && !lim;
   const sel = job.selected[t.key] && !na, st = statusOf(t.key), T = job.tests[t.key];
-  const sub = t.sub + (lim ? ` · min ${lim.min}% · max ${lim.resp} s · ${BTR.speedRangeText(lim)}` : '');
+  const range = lim ? BTR.speedRangeText(lim) : '';
+  const sub = t.sub + (lim ? ` · min ${lv(lim.min)}% · max ${lv(lim.resp)} s${range ? ' · ' + range : ''}` : '');
   let body = '';
   if (na) body = '<p class="na-note">No secondary test for this machine. The form shows N/A.</p>';
   else if (sel) {
@@ -1011,7 +1052,6 @@ function renderOcrStatus() {
 }
 function openSettings() {
   $$('#settings [data-set]').forEach(el => { el.value = settings[el.dataset.set] || ''; });
-  $$('#settings input[name="capMode"]').forEach(r => { r.checked = r.value === (settings.capMode || 'relative'); });
   renderEquipment(); renderFormStatus(); renderOcrStatus();
   $('#settings').hidden = false; document.body.style.overflow = 'hidden';
 }
@@ -1026,10 +1066,8 @@ $('#settings').addEventListener('input', e => {
   const el = e.target;
   if (el.dataset.set) settings[el.dataset.set] = el.value;
   if (el.dataset.eq != null) settings.equipment[+el.dataset.eq][el.dataset.k] = el.value;
-  if (el.name === 'capMode') settings.capMode = el.value;
   save();
 });
-$('#settings').addEventListener('change', e => { if (e.target.name === 'capMode') { settings.capMode = e.target.value; save(); } });
 $('#loadForm').addEventListener('click', () => $('#formIn').click());
 $('#formIn').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;

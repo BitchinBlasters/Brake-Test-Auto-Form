@@ -56,6 +56,25 @@
 
   function machineById(id) { return MACHINES.find(m => m.id === id) || null; }
 
+  /* "Other": a machine not on the criteria sheet, with limits typed in by the tester. */
+  const OTHER_ID = 'other';
+  const CUSTOM_FIELDS = ['type', 'model', 'svcUL', 'svcL', 'svcResp', 'svcSpeedMin', 'svcSpeedMax', 'noSecondary', 'secUL', 'secL', 'secResp', 'secSpeedMax'];
+  function customMachine(c) {
+    c = c || {};
+    const type = String(c.type || '').trim(), model = String(c.model || '').trim();
+    return {
+      id: OTHER_ID, custom: true, type: type || 'Other', model: model || 'Other', make: '', serialCode: '',
+      description: [model, type].filter(Boolean).join(' '),
+      service: { speedMin: num(c.svcSpeedMin), speedMax: num(c.svcSpeedMax), speedBelow: false, resp: num(c.svcResp), unladen: num(c.svcUL), laden: num(c.svcL) },
+      secondary: c.noSecondary ? null : { speedMin: null, speedMax: num(c.secSpeedMax), speedBelow: true, resp: num(c.secResp), unladen: num(c.secUL), laden: num(c.secL) },
+    };
+  }
+  /** The machine a job is for: one from the criteria sheet, or the job's own "Other" limits. */
+  function resolveMachine(job) {
+    if (!job || !job.machineId) return null;
+    return job.machineId === OTHER_ID ? customMachine(job.custom) : machineById(job.machineId);
+  }
+
   function machinesForSerial(serial) {
     const s = String(serial || '').toUpperCase().replace(/\s+/g, '');
     if (s.length < 3) return [];
@@ -76,6 +95,7 @@
 
   function speedRangeText(l) {
     if (!l) return '';
+    if (l.speedBelow ? !Number.isFinite(l.speedMax) : !(Number.isFinite(l.speedMin) && Number.isFinite(l.speedMax))) return '';
     return l.speedBelow ? `under ${l.speedMax} km/h` : `${l.speedMin}–${l.speedMax} km/h`;
   }
 
@@ -422,9 +442,8 @@
   }
   function fmt(n, dp = 1) { return Number.isFinite(n) ? (Math.round(n * 10 ** dp) / 10 ** dp).toString() : '—'; }
 
-  /** Difference between two readings. mode 'relative' = % of their average; 'points' = absolute. */
-  function diffPct(a, b, mode) {
-    if (mode === 'points') return Math.abs(a - b);
+  /** Difference between two readings as a % of their average. */
+  function diffPct(a, b) {
     const avg = (a + b) / 2;
     if (avg === 0) return a === b ? 0 : 100;
     return Math.abs(a - b) / Math.abs(avg) * 100;
@@ -434,7 +453,7 @@
 
   /**
    * Check one test (a pair of slips).
-   * opts: { capMode: 'relative'|'points', otherTestNos: [numbers used by other tests] }
+   * opts: { otherTestNos: [numbers used by other tests] }
    * Returns { status: 'pass'|'warn'|'fail'|'incomplete'|'na', items: [{level, text}], slips: sorted }
    */
   function checkTest(testKey, slips, machine, opts) {
@@ -443,6 +462,9 @@
     const items = [];
     if (!machine) return { status: 'incomplete', items: [{ level: 'info', text: 'Choose the machine first.' }], slips: slips || [] };
     if (!limits) return { status: 'na', items: [{ level: 'info', text: 'No secondary brake test for this machine. Marked N/A on the form.' }], slips: [] };
+    if (!Number.isFinite(limits.min) || !Number.isFinite(limits.resp)) {
+      return { status: 'incomplete', items: [{ level: 'info', text: 'Enter the minimum capability and maximum response time for this machine in the Machine section.' }], slips: (slips || []).filter(Boolean) };
+    }
     slips = (slips || []).filter(Boolean);
     if (slips.length < 2) {
       return { status: 'incomplete', items: [{ level: 'info', text: slips.length ? 'One slip read. Add the second slip.' : 'Photograph the 2 slips for this test.' }], slips };
@@ -475,16 +497,15 @@
 
     // Speeds within 5% of each other
     const sA = num(A.speed), sB = num(B.speed);
-    const dS = diffPct(sA, sB, 'relative');
+    const dS = diffPct(sA, sB);
     const bS = band(dS);
     items.push({ level: bS, text: `Speeds ${A.speed} and ${B.speed} km/h are ${fmt(dS)}% apart` + (bS === 'ok' ? '' : bS === 'warn' ? ' (over 5%)' : ' (over 10%)') });
 
     // Capabilities within 5% of each other
     const cA = num(A.capability), cB = num(B.capability);
-    const dC = diffPct(cA, cB, opts.capMode);
+    const dC = diffPct(cA, cB);
     const bC = band(dC);
-    const unitC = opts.capMode === 'points' ? ' points' : '%';
-    items.push({ level: bC, text: `Capabilities ${A.capability}% and ${B.capability}% are ${fmt(dC)}${unitC} apart` + (bC === 'ok' ? '' : bC === 'warn' ? ' (over 5)' : ' (over 10)') });
+    items.push({ level: bC, text: `Capabilities ${A.capability}% and ${B.capability}% are ${fmt(dC)}% apart` + (bC === 'ok' ? '' : bC === 'warn' ? ' (over 5%)' : ' (over 10%)') });
 
     // Capability against the minimum
     const lowCap = slips.filter(s => num(s.values.capability) < limits.min);
@@ -497,7 +518,7 @@
     else items.push({ level: 'ok', text: `Response times within ${limits.resp} s` });
 
     // Speed of test within the rated range (warning only)
-    const outRange = slips.filter(s => {
+    const outRange = !speedRangeText(limits) ? [] : slips.filter(s => {
       const v = num(s.values.speed);
       if (limits.speedBelow) return !(v < limits.speedMax);
       return v < limits.speedMin || v > limits.speedMax;
@@ -676,7 +697,7 @@
    * results: { svcUL: checkTest(...), ... } ; include: { svcUL: true, ... } tests to put on the form
    */
   function buildFormModel(job, settings, results, include) {
-    const machine = machineById(job.machineId);
+    const machine = resolveMachine(job);
     const model = {
       header: {
         station: settings.stationName, tester: settings.testerName, wo: job.wo,
@@ -746,7 +767,7 @@
 
   const API = {
     CRITERIA, MACHINES, TESTS, FIELDS, FIELD_KEYS, LAYOUT,
-    machineById, machinesForSerial, limitsFor, speedRangeText,
+    machineById, machinesForSerial, limitsFor, speedRangeText, OTHER_ID, CUSTOM_FIELDS, customMachine, resolveMachine,
     cleanNumber, splitTokens, groupLines, labelHits, parseSlipWords, splitSlips, readSlips, slipScore, mergeReads,
     num, fmt, diffPct, checkTest, fillForm, buildFormModel, todayDMY, nowHM, parseDMY,
   };
