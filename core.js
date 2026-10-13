@@ -14,6 +14,7 @@
    *   sec  = secondary brake: [max speed (must be below), max response s, unladen %, laden %]
    *          null = no secondary test for this machine (N/A on the form)
    * ------------------------------------------------------------------ */
+  const VERSION = '2026-10-13c'; // must match APP_VERSION in index.html
   const CRITERIA = { name: 'WHC-BWM-SPC Brake Testing Performance Criteria', issue: '3.1', date: '18 March 2026' };
 
   const MACHINE_TABLE = [
@@ -819,7 +820,7 @@
   }
 
   const API = {
-    CRITERIA, MACHINES, TESTS, FIELDS, FIELD_KEYS, LAYOUT,
+    VERSION, CRITERIA, MACHINES, TESTS, FIELDS, FIELD_KEYS, LAYOUT,
     machineById, machinesForSerial, limitsFor, speedRangeText, OTHER_ID, CUSTOM_FIELDS, customMachine, resolveMachine,
     cleanNumber, splitTokens, groupLines, labelHits, parseSlipWords, splitSlips, readSlips, slipScore, mergeReads,
     num, fmt, diffPct, checkTest, fillForm, buildFormModel, todayDMY, nowHM, parseDMY,
