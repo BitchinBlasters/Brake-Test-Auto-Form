@@ -598,19 +598,35 @@
     const ink = rgb(0.05, 0.05, 0.1);
     const SIZE = 10.5;
 
+    // The form's font can only print basic Western characters on one line.
+    // Line breaks become spaces; anything else it can't print is swapped for a close match or dropped.
+    const charset = new Set(font.getCharacterSet());
+    const SWAP = { '\u2264': '<=', '\u2265': '>=', '\u2212': '-', '\u2010': '-', '\u2011': '-', '\u00a0': ' ', '\u2007': ' ', '\u202f': ' ' };
+    function clean(text) {
+      let out = '';
+      for (const ch of String(text == null ? '' : text).replace(/\s+/g, ' ')) {
+        if (charset.has(ch.codePointAt(0))) out += ch;
+        else if (SWAP[ch]) out += SWAP[ch];
+        else {
+          const plain = ch.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+          if (plain && [...plain].every(c => charset.has(c.codePointAt(0)))) out += plain;
+        }
+      }
+      return out.trim();
+    }
     function fit(text, max) {
       let size = SIZE;
       while (size > 6.5 && font.widthOfTextAtSize(text, size) > max) size -= 0.25;
       return size;
     }
     function left(p, text, x, y, max) {
-      text = String(text == null ? '' : text).trim();
+      text = clean(text);
       if (!text) return;
       const size = max ? fit(text, max) : SIZE;
       pages[p].drawText(text, { x, y, size, font, color: ink });
     }
     function center(p, text, col, y) {
-      text = String(text == null ? '' : text).trim();
+      text = clean(text);
       if (!text) return;
       const max = col[1] - col[0] - 6;
       const size = fit(text, max);
@@ -677,10 +693,45 @@
       if (i === 0) left(C.page, 'Brake Performance BP%', C.labelX, y);
       else left(C.page, '|  |         |  |', C.dittoX, y);
     });
-    const note = m.comments && m.comments.note;
-    if (note) {
-      if (perf.length < C.rows.length) left(C.page, note, C.x, C.rows[perf.length], C.right - C.x);
-      else left(C.page, note, C.noteX, C.rows[C.rows.length - 1], C.right - C.noteX);
+    // Closing comment: keeps its line breaks and wraps onto the free comment lines.
+    // If it needs more room than the free lines, it moves up beside the performance lines.
+    const paras = String((m.comments && m.comments.note) || '').split(/\r?\n/).map(clean).filter(Boolean);
+    if (paras.length) {
+      const N = Math.min(perf.length, C.rows.length);
+      const slotX = r => (r >= N ? C.x : r === 0 ? 240 : C.noteX); // row 0 also holds "Brake Performance BP%"
+      const wrapInto = (start, size) => {
+        const placed = [];
+        let r = start;
+        for (const para of paras) {
+          let line = '';
+          for (const word of para.split(' ')) {
+            const tryLine = line ? line + ' ' + word : word;
+            if (r < C.rows.length && font.widthOfTextAtSize(tryLine, size) <= C.right - slotX(r)) { line = tryLine; continue; }
+            if (line) { placed.push({ r, text: line }); r++; }
+            line = word;
+          }
+          if (line) { placed.push({ r, text: line }); r++; }
+        }
+        return r <= C.rows.length ? placed : null;
+      };
+      let layout = null, size = SIZE;
+      for (size = SIZE; size >= 8 && !layout; size -= 0.5) {
+        for (let start = Math.min(N, C.rows.length - 1); start >= 0 && !layout; start--) layout = wrapInto(start, size);
+      }
+      size += 0.5;
+      if (!layout) { // still too long: run it together at the smallest size and stop at the last line
+        size = 8;
+        layout = [];
+        let r = 0, line = '';
+        for (const word of paras.join(' ').split(' ')) {
+          const tryLine = line ? line + ' ' + word : word;
+          if (font.widthOfTextAtSize(tryLine, size) <= C.right - slotX(r) || !line) { line = tryLine; continue; }
+          layout.push({ r, text: line }); r++; line = word;
+          if (r >= C.rows.length) break;
+        }
+        if (r < C.rows.length && line) layout.push({ r, text: line });
+      }
+      for (const l of layout) pages[C.page].drawText(l.text, { x: slotX(l.r), y: C.rows[l.r], size: Math.min(size, SIZE), font, color: ink });
     }
 
     // Sign-off (person conducting testing)
@@ -722,13 +773,15 @@
         table.rows[base] = { mark: 'na' }; table.rows[base + 1] = { mark: 'na' };
         continue;
       }
-      if (!include[t.key] || !res || !(res.status === 'pass' || res.status === 'warn')) continue;
+      if (!include[t.key] || !res || !['pass', 'warn', 'fail'].includes(res.status)) continue;
+      // An out-of-spec test the tester chose to record gets Fail ticked on both rows.
+      const mark = res.status === 'fail' ? 'fail' : 'pass';
       res.slips.forEach((s, i) => {
         const v = s.values;
         table.rows[base + i] = {
           payload: t.load === 'laden' ? job.payload : '',
           testNo: v.testNo, min: fmt(res.limits.min), actual: v.capability,
-          respReq: fmt(res.limits.resp), resp: v.reaction, mark: 'pass',
+          respReq: fmt(res.limits.resp), resp: v.reaction, mark,
         };
         perf.push({ testNo: v.testNo, value: v.performance });
       });

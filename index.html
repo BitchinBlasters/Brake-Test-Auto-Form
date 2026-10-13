@@ -166,6 +166,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); }
 .mark.fail { background: var(--fail); color: var(--surface); }
 .accept { display: flex; gap: 10px; align-items: flex-start; background: var(--warn-bg); border-radius: 8px; padding: 10px 12px; font-weight: 600; font-size: .92rem; cursor: pointer; }
 .accept input { width: 22px; height: 22px; margin: 0; flex: none; accent-color: var(--warn); }
+.accept.fail { background: var(--fail-bg); }
+.accept.fail input { accent-color: var(--fail); }
 details.raw summary { cursor: pointer; font-size: .84rem; color: var(--muted); }
 details.raw pre { white-space: pre-wrap; font: .78rem/1.4 var(--f-mono); background: var(--info-bg); padding: 10px; border-radius: 8px; margin: 8px 0 0; max-height: 220px; overflow: auto; }
 
@@ -516,7 +518,7 @@ function computeResults() {
 }
 function fillable(key) {
   const r = results[key], t = job.tests[key];
-  return !!(job.selected[key] && r && (r.status === 'pass' || (r.status === 'warn' && t.accepted)));
+  return !!(job.selected[key] && r && (r.status === 'pass' || ((r.status === 'warn' || r.status === 'fail') && t.accepted)));
 }
 function statusOf(key) {
   const m = machine(), r = results[key];
@@ -527,7 +529,7 @@ function statusOf(key) {
   switch (r && r.status) {
     case 'pass': return { cls: 'pass', text: 'In spec' };
     case 'warn': return job.tests[key].accepted ? { cls: 'accepted', text: 'Accepted' } : { cls: 'warn', text: 'Warning' };
-    case 'fail': return { cls: 'fail', text: 'Out of spec' };
+    case 'fail': return { cls: 'fail', text: job.tests[key].accepted ? 'Fail · on form' : 'Out of spec' };
     default: return { cls: 'idle', text: job.tests[key].slips.length < 2 ? 'Needs slips' : 'Check values' };
   }
 }
@@ -645,7 +647,9 @@ function verdictHTML(key) {
   if (r.status === 'warn') {
     html += `<label class="accept"><input type="checkbox" data-act="accept" ${t.accepted ? 'checked' : ''}><span>I've checked the warning. Put this test on the form anyway.</span></label>`;
   }
-  if (r.status === 'fail') html += '<p class="note">Out of spec. This test stays off the form.</p>';
+  if (r.status === 'fail') {
+    html += `<label class="accept fail"><input type="checkbox" data-act="accept" ${t.accepted ? 'checked' : ''}><span>Record this test as a fail. It goes on the form with Fail ticked.</span></label>`;
+  }
   return html;
 }
 function tileHTML(t) {
@@ -943,9 +947,12 @@ function renderFinish() {
     if (!m) { txt = '—'; cls = 'idle'; }
     else if (r.status === 'na') { txt = 'N/A'; cls = 'idle'; }
     else if (!job.selected[t.key]) { txt = 'Not recorded'; cls = 'idle'; }
-    else if (fillable(t.key)) { txt = r.status === 'warn' ? 'Goes on (warning accepted)' : 'Goes on the form'; cls = r.status === 'warn' ? 'warn' : 'ok'; }
+    else if (fillable(t.key)) {
+      txt = r.status === 'fail' ? 'Goes on as a fail' : r.status === 'warn' ? 'Goes on (warning accepted)' : 'Goes on the form';
+      cls = r.status === 'fail' ? 'fail' : r.status === 'warn' ? 'warn' : 'ok';
+    }
     else if (r.status === 'warn') { txt = 'Accept the warning first'; cls = 'warn'; }
-    else if (r.status === 'fail') { txt = 'Out of spec, left blank'; cls = 'fail'; }
+    else if (r.status === 'fail') { txt = 'Out of spec, left blank (tick to record)'; cls = 'fail'; }
     else { txt = 'Not finished'; cls = 'idle'; }
     rows.push(`<li><span>${esc(name)}</span><span class="${cls}">${esc(txt)}</span></li>`);
   }
