@@ -178,6 +178,10 @@ details.raw pre { white-space: pre-wrap; font: .78rem/1.4 var(--f-mono); backgro
 .seg button[aria-pressed="true"][data-val="pass"] { background: var(--ok); color: var(--surface); }
 .seg button[aria-pressed="true"][data-val="fail"] { background: var(--fail); color: var(--surface); }
 .seg button[aria-pressed="true"][data-val="na"] { background: var(--ink); color: var(--surface); }
+.seg.two { grid-template-columns: repeat(2, 1fr); }
+.choose { display: grid; gap: 8px; background: var(--fail-bg); border-radius: 8px; padding: 10px 12px; }
+.choose p { margin: 0; font-weight: 600; font-size: .92rem; }
+.choose p.small { font-weight: 400; font-size: .82rem; }
 .unit-in { position: relative; }
 .unit-in input { padding-right: 34px; }
 .unit-in i { position: absolute; right: 12px; bottom: 14px; font-style: normal; color: var(--muted); font-weight: 600; }
@@ -385,13 +389,13 @@ details.raw pre { white-space: pre-wrap; font: .78rem/1.4 var(--f-mono); backgro
 <input type="file" id="formIn" accept="application/pdf,.pdf" hidden>
 
 <script src="pdf-lib.min.js"></script>
-<script src="core.js?v=2026-10-13c"></script>
+<script src="core.js?v=2026-10-13d"></script>
 <script>
 'use strict';
 /* =====================================================================
  * Brake Test Recorder — app wiring
  * ===================================================================== */
-const APP_VERSION = '2026-10-13c';
+const APP_VERSION = '2026-10-13d';
 const TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
 const LS_SETTINGS = 'btr.settings.v1', LS_JOB = 'btr.job.v1';
 const $ = (s, el = document) => el.querySelector(s);
@@ -426,7 +430,7 @@ function blankCustom() {
 }
 function newJob() {
   const tests = {};
-  BTR.TESTS.forEach(t => { tests[t.key] = { slips: [], accepted: false, note: '' }; });
+  BTR.TESTS.forEach(t => { tests[t.key] = { slips: [], accepted: false, note: '', mark: 'fail' }; });
   return {
     machineId: '', unitId: '', serial: '', hours: '', wo: '', payload: '',
     date: BTR.todayDMY(), time: BTR.nowHM(), description: '', descEdited: false,
@@ -438,10 +442,16 @@ function newJob() {
 let job = load(LS_JOB, null);
 if (!job || !job.tests) job = newJob();
 if (!job.custom) job.custom = blankCustom();
-BTR.TESTS.forEach(t => { if (!job.tests[t.key]) job.tests[t.key] = { slips: [], accepted: false, note: '' }; });
+BTR.TESTS.forEach(t => {
+  if (!job.tests[t.key]) job.tests[t.key] = { slips: [], accepted: false, note: '', mark: 'fail' };
+  if (job.tests[t.key].mark !== 'pass') job.tests[t.key].mark = 'fail';
+});
 
 let saveTimer = null;
 function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { store(LS_JOB, job); store(LS_SETTINGS, settings); }, 250); }
+function saveNow() { clearTimeout(saveTimer); store(LS_JOB, job); store(LS_SETTINGS, settings); }
+window.addEventListener('pagehide', saveNow);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(); });
 
 /* ---------- IndexedDB for the record sheet PDF ---------- */
 const idb = {
@@ -529,7 +539,7 @@ function statusOf(key) {
   switch (r && r.status) {
     case 'pass': return { cls: 'pass', text: 'In spec' };
     case 'warn': return job.tests[key].accepted ? { cls: 'accepted', text: 'Accepted' } : { cls: 'warn', text: 'Warning' };
-    case 'fail': return { cls: 'fail', text: 'Fail · on form' };
+    case 'fail': return job.tests[key].mark === 'pass' ? { cls: 'accepted', text: 'Out of spec · Pass' } : { cls: 'fail', text: 'Out of spec · Fail' };
     default: return { cls: 'idle', text: job.tests[key].slips.length < 2 ? 'Needs slips' : 'Check values' };
   }
 }
@@ -647,7 +657,14 @@ function verdictHTML(key) {
   if (r.status === 'warn') {
     html += `<label class="accept"><input type="checkbox" data-act="accept" ${t.accepted ? 'checked' : ''}><span>I've checked the warning. Put this test on the form anyway.</span></label>`;
   }
-  if (r.status === 'fail') html += '<p class="note fail">Out of spec. It goes on the form with Fail ticked. Untick this test at the top to leave it off.</p>';
+  if (r.status === 'fail') {
+    const mk = t.mark === 'pass' ? 'pass' : 'fail';
+    html += `<div class="choose"><p>Out of spec. What goes on the form?</p>
+      <div class="seg two" role="group" aria-label="Result on the form">
+        <button type="button" data-act="mark" data-val="pass" aria-pressed="${mk === 'pass'}">Pass</button><button type="button" data-act="mark" data-val="fail" aria-pressed="${mk === 'fail'}">Fail</button>
+      </div>
+      <p class="small">Untick this test at the top to leave it off the form.</p></div>`;
+  }
   return html;
 }
 function tileHTML(t) {
@@ -722,6 +739,9 @@ testList.addEventListener('click', e => {
   } else if (a === 'del-slip') {
     const T = job.tests[key]; T.slips = T.slips.filter(s => s.id !== act.dataset.slip); T.accepted = false;
     computeResults(); renderTile(key); renderFinish(); save();
+  } else if (a === 'mark') {
+    job.tests[key].mark = act.dataset.val === 'pass' ? 'pass' : 'fail';
+    updateTileStatus(key); renderFinish(); save();
   } else if (a === 'view') {
     const p = photos.get(act.dataset.photo); if (p) { $('#viewerImg').src = p.url; $('#viewer').hidden = false; }
   }
@@ -946,8 +966,9 @@ function renderFinish() {
     else if (r.status === 'na') { txt = 'N/A'; cls = 'idle'; }
     else if (!job.selected[t.key]) { txt = 'Not recorded'; cls = 'idle'; }
     else if (fillable(t.key)) {
-      txt = r.status === 'fail' ? 'Goes on as a fail' : r.status === 'warn' ? 'Goes on (warning accepted)' : 'Goes on the form';
-      cls = r.status === 'fail' ? 'fail' : r.status === 'warn' ? 'warn' : 'ok';
+      const mk = job.tests[t.key].mark === 'pass' ? 'pass' : 'fail';
+      txt = r.status === 'fail' ? `Out of spec, ${mk === 'pass' ? 'Pass' : 'Fail'} ticked` : r.status === 'warn' ? 'Goes on (warning accepted)' : 'Goes on the form';
+      cls = r.status === 'fail' ? (mk === 'pass' ? 'warn' : 'fail') : r.status === 'warn' ? 'warn' : 'ok';
     }
     else if (r.status === 'warn') { txt = 'Accept the warning first'; cls = 'warn'; }
     else { txt = 'Not finished'; cls = 'idle'; }

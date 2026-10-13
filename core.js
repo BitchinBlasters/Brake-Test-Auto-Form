@@ -14,7 +14,7 @@
    *   sec  = secondary brake: [max speed (must be below), max response s, unladen %, laden %]
    *          null = no secondary test for this machine (N/A on the form)
    * ------------------------------------------------------------------ */
-  const VERSION = '2026-10-13c'; // must match APP_VERSION in index.html
+  const VERSION = '2026-10-13d'; // must match APP_VERSION in index.html
   const CRITERIA = { name: 'WHC-BWM-SPC Brake Testing Performance Criteria', issue: '3.1', date: '18 March 2026' };
 
   const MACHINE_TABLE = [
@@ -775,8 +775,9 @@
         continue;
       }
       if (!include[t.key] || !res || !['pass', 'warn', 'fail'].includes(res.status)) continue;
-      // An out-of-spec test the tester chose to record gets Fail ticked on both rows.
-      const mark = res.status === 'fail' ? 'fail' : 'pass';
+      // Out of spec: the tester picks Pass or Fail for the test (Fail unless they choose Pass).
+      const chosen = job.tests && job.tests[t.key] && job.tests[t.key].mark;
+      const mark = res.status === 'fail' ? (chosen === 'pass' ? 'pass' : 'fail') : 'pass';
       res.slips.forEach((s, i) => {
         const v = s.values;
         table.rows[base + i] = {
